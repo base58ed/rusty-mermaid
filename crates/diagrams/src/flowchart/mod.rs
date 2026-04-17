@@ -53,7 +53,11 @@ fn subgraph_style(theme: &Theme) -> Style {
 
 fn subgraph_label_style(theme: &Theme) -> TextStyle {
     TextStyle {
-        font_size: theme.font_size_label,
+        // Subgraph labels are the spatial "index" of the diagram — "前端层",
+        // "数据层". They deserve to read larger than node body text. +3pt on
+        // top of font_size_label (13 → 16) makes them scannable without
+        // overwhelming the node fonts.
+        font_size: theme.font_size_label + 3.0,
         fill: Some(theme.subgraph_label),
         font_weight: rusty_mermaid_core::FontWeight::Bold,
         ..Default::default()
