@@ -149,19 +149,22 @@ fn parse_subgraph_header(input: &mut &str) -> ModalResult<(String, Option<String
     // Try: identifier followed by [label]
     let checkpoint = *input;
     if let Ok(id) = node_id.parse_next(input) {
-        // Check for [label]
+        // Must check `["label"]` BEFORE `[label]`: the latter is a prefix of
+        // the former, so writing the bare-bracket branch first makes the
+        // quoted branch dead code and lets literal `"` leak into the label.
+        if input.starts_with("[\"") {
+            *input = &input[1..]; // consume `[`
+            let label = quoted_string(input)?;
+            ']'.parse_next(input)?;
+            return Ok((id.to_string(), Some(label.to_string())));
+        }
         if input.starts_with('[') {
             *input = &input[1..];
             let label = text_until(']', input)?;
             ']'.parse_next(input)?;
-            return Ok((id.to_string(), Some(label.to_string())));
-        }
-        // Check for ["label"]
-        if input.starts_with("[\"") {
-            *input = &input[1..];
-            let label = quoted_string(input)?;
-            ']'.parse_next(input)?;
-            return Ok((id.to_string(), Some(label.to_string())));
+            // Belt-and-braces: if the user wrote `id[bare "text"]` — no outer
+            // quoting bracket but the content is still `"..."` — strip it.
+            return Ok((id.to_string(), Some(strip_outer_quotes(label))));
         }
         // No bracket — could be `subgraph Title Text`
         // Check if the rest of the line (before newline) is more text
@@ -184,37 +187,42 @@ fn parse_subgraph_header(input: &mut &str) -> ModalResult<(String, Option<String
     ))
 }
 
-/// Parse a node/edge statement like `A[Label] --> B[Label]` or `A --> B --> C`.
+/// Parse a node/edge statement. Supports:
+///   - single edge: `A --> B`
+///   - chained edges: `A --> B --> C`
+///   - group sources / targets via `&`: `A & B --> C & D` (emits A→C, A→D,
+///     B→C, B→D). Chains retain their "current group" so you can write
+///     `A & B --> C --> D & E`.
 fn parse_node_edge_statement(
     input: &mut &str,
     diagram: &mut FlowDiagram,
     subgraph_id: Option<&str>,
 ) -> ModalResult<()> {
-    // Parse first node
-    let first_id = parse_node_ref(input, diagram, subgraph_id)?;
+    // Parse a group of nodes joined by `&` (at least one).
+    let mut prev_group = parse_node_group(input, diagram, subgraph_id)?;
 
-    // Check for chained edges: `A --> B --> C`
-    let mut prev_id = first_id;
     loop {
         ws.parse_next(input)?;
-
-        // Try to parse an edge operator
         let checkpoint = *input;
         if let Ok((label, stroke, start_arrow, end_arrow, minlen)) = parse_edge_operator(input) {
             ws.parse_next(input)?;
-            let next_id = parse_node_ref(input, diagram, subgraph_id)?;
-
-            diagram.edges.push(FlowEdge {
-                src: prev_id.clone(),
-                dst: next_id.clone(),
-                label,
-                stroke,
-                start_arrow,
-                end_arrow,
-                minlen,
-            });
-
-            prev_id = next_id;
+            let next_group = parse_node_group(input, diagram, subgraph_id)?;
+            // Cartesian product: every src in prev_group connects to every
+            // dst in next_group.
+            for src in &prev_group {
+                for dst in &next_group {
+                    diagram.edges.push(FlowEdge {
+                        src: src.clone(),
+                        dst: dst.clone(),
+                        label: label.clone(),
+                        stroke,
+                        start_arrow,
+                        end_arrow,
+                        minlen,
+                    });
+                }
+            }
+            prev_group = next_group;
         } else {
             *input = checkpoint;
             break;
@@ -222,6 +230,37 @@ fn parse_node_edge_statement(
     }
 
     Ok(())
+}
+
+/// Parse a `&`-joined group of node refs: `A`, `A & B`, `A & B & C`.
+fn parse_node_group(
+    input: &mut &str,
+    diagram: &mut FlowDiagram,
+    subgraph_id: Option<&str>,
+) -> ModalResult<Vec<String>> {
+    let first = parse_node_ref(input, diagram, subgraph_id)?;
+    let mut group = vec![first];
+    loop {
+        let checkpoint = *input;
+        // Leading whitespace before `&` is optional; mermaid allows both
+        // `A&B` and `A & B`.
+        let _ = ws.parse_next(input);
+        if input.starts_with('&') {
+            *input = &input[1..];
+            let _ = ws.parse_next(input);
+            match parse_node_ref(input, diagram, subgraph_id) {
+                Ok(id) => group.push(id),
+                Err(_) => {
+                    *input = checkpoint;
+                    break;
+                }
+            }
+        } else {
+            *input = checkpoint;
+            break;
+        }
+    }
+    Ok(group)
 }
 
 /// Parse a node reference: `A`, `A[Label]`, `A{Label}`, `A[(Label)]`, etc.
@@ -289,22 +328,22 @@ fn parse_node_shape(input: &mut &str) -> ModalResult<(Shape, String)> {
                 *input = &input[1..];
                 let label = text_until(')', input)?;
                 ")]".parse_next(input)?;
-                Ok((Shape::Cylinder, label.to_string()))
+                Ok((Shape::Cylinder, strip_outer_quotes(label)))
             } else if input.starts_with('[') {
                 *input = &input[1..];
                 let label = text_until(']', input)?;
                 "]]".parse_next(input)?;
-                Ok((Shape::Subroutine, label.to_string()))
+                Ok((Shape::Subroutine, strip_outer_quotes(label)))
             } else if input.starts_with('/') {
                 // Trapezoid [/text\] or lean right [/text/]
                 *input = &input[1..];
                 let label = text_until_trap(input)?;
-                Ok((Shape::Trapezoid, label))
+                Ok((Shape::Trapezoid, strip_outer_quotes(&label)))
             } else if input.starts_with('\\') {
                 // Inv trapezoid [\text/] or lean left [\text\]
                 *input = &input[1..];
                 let label = text_until_trap(input)?;
-                Ok((Shape::TrapezoidAlt, label))
+                Ok((Shape::TrapezoidAlt, strip_outer_quotes(&label)))
             } else {
                 // Regular rect [text] or quoted ["text"]
                 let label = if input.starts_with('"') {
@@ -326,7 +365,7 @@ fn parse_node_shape(input: &mut &str) -> ModalResult<(Shape, String)> {
                 *input = &input[1..];
                 let label = text_until(']', input)?;
                 "])".parse_next(input)?;
-                Ok((Shape::Stadium, label.to_string()))
+                Ok((Shape::Stadium, strip_outer_quotes(label)))
             } else if input.starts_with('(') {
                 // Circle ((text)) or double circle (((text)))
                 *input = &input[1..];
@@ -334,17 +373,17 @@ fn parse_node_shape(input: &mut &str) -> ModalResult<(Shape, String)> {
                     *input = &input[1..];
                     let label = text_until(')', input)?;
                     ")))".parse_next(input)?;
-                    Ok((Shape::DoubleCircle, label.to_string()))
+                    Ok((Shape::DoubleCircle, strip_outer_quotes(label)))
                 } else {
                     let label = text_until(')', input)?;
                     "))".parse_next(input)?;
-                    Ok((Shape::Circle, label.to_string()))
+                    Ok((Shape::Circle, strip_outer_quotes(label)))
                 }
             } else {
                 // Rounded rect (text)
                 let label = text_until(')', input)?;
                 ')'.parse_next(input)?;
-                Ok((Shape::RoundedRect, label.to_string()))
+                Ok((Shape::RoundedRect, strip_outer_quotes(label)))
             }
         }
         '{' => {
@@ -354,12 +393,12 @@ fn parse_node_shape(input: &mut &str) -> ModalResult<(Shape, String)> {
                 *input = &input[1..];
                 let label = text_until('}', input)?;
                 "}}".parse_next(input)?;
-                Ok((Shape::Hexagon, label.to_string()))
+                Ok((Shape::Hexagon, strip_outer_quotes(label)))
             } else {
                 // Diamond {text}
                 let label = text_until('}', input)?;
                 '}'.parse_next(input)?;
-                Ok((Shape::Diamond, label.to_string()))
+                Ok((Shape::Diamond, strip_outer_quotes(label)))
             }
         }
         '>' => {
@@ -367,11 +406,30 @@ fn parse_node_shape(input: &mut &str) -> ModalResult<(Shape, String)> {
             *input = &input[1..];
             let label = text_until(']', input)?;
             ']'.parse_next(input)?;
-            Ok((Shape::Asymmetric, label.to_string()))
+            Ok((Shape::Asymmetric, strip_outer_quotes(label)))
         }
         _ => Err(winnow::error::ErrMode::Backtrack(
             winnow::error::ContextError::new(),
         )),
+    }
+}
+
+/// Strip a single pair of surrounding double quotes from a label body.
+///
+/// Mermaid allows any shape to wrap its label in `"..."` as a quoting
+/// mechanism (required when the label contains syntax characters like `]`,
+/// `)`, `}`, `,`). The `Rect` branch above handles this explicitly via
+/// [`quoted_string`], but every other shape (`Cylinder`, `Stadium`, `Circle`,
+/// `Diamond`, `Hexagon`, `RoundedRect`, `Subroutine`, `Asymmetric`, the
+/// trapezoids, and the double-circle) just runs `text_until` and so keeps
+/// the literal `"` characters in the label — which then get rendered as
+/// visible quotes on the node. This helper is applied uniformly at each
+/// call site so the behaviour matches `Rect`.
+fn strip_outer_quotes(s: &str) -> String {
+    if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+        s[1..s.len() - 1].to_string()
+    } else {
+        s.to_string()
     }
 }
 
