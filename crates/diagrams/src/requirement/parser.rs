@@ -36,7 +36,10 @@ fn parse_statements(input: &mut &str, diagram: &mut RequirementDiagram) -> Modal
             break;
         }
         if !try_parse_statement(input, diagram)? && !input.is_empty() {
-            *input = &input[1..];
+            // Char-safe advance — skip one Unicode scalar, not one byte.
+            let mut chars = input.chars();
+            chars.next();
+            *input = chars.as_str();
         }
     }
     Ok(())

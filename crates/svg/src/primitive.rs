@@ -396,17 +396,30 @@ fn render_arc(
 }
 
 /// Convert `<br/>` variants to `\n` for SVG multi-line rendering.
+///
+/// NOTE on UTF-8: the earlier implementation did `result.push(bytes[i] as char);
+/// i += 1;` which only worked for ASCII. For any multi-byte codepoint (CJK,
+/// emoji, combining marks, etc.) it pushed each raw byte as a separate
+/// Latin-1 char, producing mojibake (`异` = `E5 BC 82` became three garbage
+/// chars). We now copy whole codepoints by looking up their UTF-8 byte
+/// length from the lead byte and slicing the ORIGINAL `&str` (which keeps
+/// the bytes as a valid string).
+///
+/// `<br>` detection itself is still byte-driven because `<`, `b`/`B`,
+/// `r`/`R`, `/`, ` `, `>` are all ASCII — single-byte match is correct
+/// there and cheaper than a char scan.
 fn normalize_line_breaks(s: &str) -> std::borrow::Cow<'_, str> {
     if !s.contains("<br") {
         return std::borrow::Cow::Borrowed(s);
     }
-    // Match <br>, <br/>, <br />, case-insensitive
     let mut result = String::with_capacity(s.len());
     let mut i = 0;
     let bytes = s.as_bytes();
     while i < bytes.len() {
-        if i + 3 < bytes.len()
-            && bytes[i] == b'<'
+        // ASCII-fast <br> match. All bytes involved are ASCII, so the byte
+        // index arithmetic never lands inside a multi-byte codepoint.
+        if bytes[i] == b'<'
+            && i + 2 < bytes.len()
             && bytes[i + 1].eq_ignore_ascii_case(&b'b')
             && bytes[i + 2].eq_ignore_ascii_case(&b'r')
         {
@@ -423,10 +436,32 @@ fn normalize_line_breaks(s: &str) -> std::borrow::Cow<'_, str> {
                 continue;
             }
         }
-        result.push(bytes[i] as char);
-        i += 1;
+        // Copy a whole UTF-8 codepoint (1-4 bytes) by slicing the source
+        // string at codepoint boundaries.
+        let ch_len = utf8_codepoint_len(bytes[i]);
+        let end = (i + ch_len).min(bytes.len());
+        result.push_str(&s[i..end]);
+        i = end;
     }
     std::borrow::Cow::Owned(result)
+}
+
+/// Given the first byte of a UTF-8 codepoint, return the codepoint's total
+/// byte length (1-4). A continuation byte (0x80..0xC0) is treated as length
+/// 1 to avoid getting stuck on malformed input.
+#[inline]
+fn utf8_codepoint_len(first: u8) -> usize {
+    if first < 0x80 {
+        1
+    } else if first < 0xC0 {
+        1 // stray continuation byte — skip it
+    } else if first < 0xE0 {
+        2
+    } else if first < 0xF0 {
+        3
+    } else {
+        4
+    }
 }
 
 fn xml_escape(s: &str) -> String {

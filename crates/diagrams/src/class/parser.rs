@@ -46,7 +46,11 @@ fn parse_statements(
             break;
         }
         if !try_parse_statement(input, diagram, namespace)? && !input.is_empty() {
-            *input = &input[1..];
+            // Skip one char (not byte) — `&input[1..]` panics on multi-byte
+            // UTF-8 starts (CJK, `▋`, emoji, etc.).
+            let mut chars = input.chars();
+            chars.next();
+            *input = chars.as_str();
         }
     }
     Ok(())
