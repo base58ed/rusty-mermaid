@@ -184,7 +184,12 @@ fn render_text(
         TextAnchor::Middle => "middle",
         TextAnchor::End => "end",
     };
-    let content = normalize_line_breaks(content);
+    // LaTeX-in-label simplification: LLMs sometimes embed `\mathbb{E}`,
+    // `t_{transit}`, `\text{状态}` inside mermaid node/edge labels. Rewrite
+    // them to Unicode equivalents before line-break normalisation so both
+    // the measurement pass and the SVG output see the final glyph form.
+    let latex_stripped = rusty_mermaid_core::strip_latex_to_unicode(content);
+    let content = normalize_line_breaks(&latex_stripped);
     let content: &str = &content;
     let lines: Vec<&str> = content.split('\n').collect();
 

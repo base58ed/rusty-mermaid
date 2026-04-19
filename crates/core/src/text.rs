@@ -85,7 +85,11 @@ impl SimpleTextMeasure {
 impl TextMeasure for SimpleTextMeasure {
     fn measure(&self, text: &str, style: &TextStyle) -> TextSize {
         let scale = style.font_size / crate::constants::REFERENCE_FONT_SIZE;
-        let stripped = strip_markup(text);
+        // Convert LaTeX commands to Unicode BEFORE stripping markdown markers
+        // so that label sizing matches what the SVG renderer actually draws.
+        // Example: `\mathbb{E}[T]` measures as 3 chars (𝔼[T]), not 14.
+        let latex_stripped = crate::latex::strip_latex_to_unicode(text);
+        let stripped = strip_markup(&latex_stripped);
         let mut max_width: f64 = 0.0;
         let mut line_count: usize = 0;
         for line in stripped.split('\n') {
