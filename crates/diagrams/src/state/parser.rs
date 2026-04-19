@@ -66,7 +66,11 @@ fn parse_body(input: &mut &str, ctx: &mut ParseCtx, is_top_level: bool) -> Modal
             break;
         }
         if !try_parse_statement(input, ctx, is_top_level)? && !input.is_empty() {
-            *input = &input[1..];
+            // Char-level advance so multi-byte UTF-8 (CJK, `▋`, emoji) can't
+            // split a codepoint and panic the str slicer.
+            let mut chars = input.chars();
+            chars.next();
+            *input = chars.as_str();
         }
     }
     Ok(())
@@ -329,7 +333,10 @@ fn parse_composite_state(input: &mut &str, outer_ctx: &mut ParseCtx) -> ModalRes
         inner_ctx.states = std::mem::take(&mut region_children);
         inner_ctx.transitions = std::mem::take(&mut region_trans);
         if !try_parse_statement(input, &mut inner_ctx, false)? && !input.is_empty() {
-            *input = &input[1..];
+            // Char-safe advance; see parse_body().
+            let mut chars = input.chars();
+            chars.next();
+            *input = chars.as_str();
         }
         region_children = std::mem::take(&mut inner_ctx.states);
         region_trans = std::mem::take(&mut inner_ctx.transitions);

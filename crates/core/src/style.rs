@@ -157,7 +157,9 @@ impl Theme {
     pub fn dark() -> Self {
         Self {
             node_fill: Color::rgb(45, 45, 68),           // #2d2d44
-            node_stroke: Color::rgb(124, 111, 189),      // #7c6fbd
+            // Bumped from #7c6fbd to Tailwind violet-400 so strokes read at
+            // 1× zoom on dark UI bubbles (was muted / low-contrast).
+            node_stroke: Color::rgb(167, 139, 250),      // #a78bfa violet-400
             node_text: Color::rgb(205, 214, 244),        // #cdd6f4
             edge_stroke: Color::rgb(166, 173, 200),      // #a6adc8
             edge_label_text: Color::rgb(186, 194, 222),  // #bac2de
@@ -170,9 +172,12 @@ impl Theme {
             note_fill: Color::rgb(62, 60, 40), // dark yellow-brown
             note_stroke: Color::rgb(170, 170, 51),
             note_text: Color::rgb(205, 214, 244),
-            subgraph_fill: Color::rgb(40, 43, 35), // #282b23 dark sage
-            subgraph_stroke: Color::rgb(105, 112, 85), // #697055 muted dark olive
-            subgraph_label: Color::rgb(205, 214, 244),
+            // Subgraph = "layer card" in the architecture-diagram aesthetic:
+            // almost-transparent slate-900 fill so nodes pop off it, visible
+            // slate-400 stroke so the grouping reads, bright label.
+            subgraph_fill: Color::rgba(15, 23, 42, 120), // slate-900 @ ~47%
+            subgraph_stroke: Color::rgb(148, 163, 184), // slate-400 #94a3b8
+            subgraph_label: Color::rgb(226, 232, 240), // slate-200 #e2e8f0 brighter
             divider_stroke: Color::rgb(88, 91, 112),
             region_stroke: Color::rgb(88, 91, 112),
             lifeline_stroke: Color::rgb(100, 95, 130), // muted purple-gray
@@ -188,7 +193,11 @@ impl Theme {
             font_size_small: 11.0,
             font_size_tiny: 9.0,
             font_size_title: 16.0,
-            default_stroke_width: 1.5,
+            // 2.0 reads crisper than 1.5 on retina-scaled dark UIs; matches
+            // the architecture-diagram skill convention (`stroke-width="1.5"`
+            // there is on vibrant fills — we need a hair more weight against
+            // transparent dark fills).
+            default_stroke_width: 2.0,
             padding: 20.0,
             background: Color::rgb(30, 30, 46), // #1e1e2e
             custom_font: None,

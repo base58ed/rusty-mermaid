@@ -57,9 +57,14 @@ fn parse_items(
             return Ok(items);
         }
         if !try_parse_statement(input, ctx, &mut items)? {
-            // Skip unrecognized character
+            // Skip one unrecognised **char** (not byte). `&input[1..]` used
+            // to panic here on any multi-byte UTF-8 start (CJK, symbols,
+            // the `▋` streaming cursor, etc.) because byte index 1 lands
+            // mid-codepoint.
             if !input.is_empty() {
-                *input = &input[1..];
+                let mut chars = input.chars();
+                chars.next();
+                *input = chars.as_str();
             }
         }
     }

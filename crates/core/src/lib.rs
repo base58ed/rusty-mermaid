@@ -56,6 +56,7 @@ pub mod curve;
 pub mod font_fallback;
 pub mod force_layout;
 pub mod geometry;
+pub mod latex;
 pub mod marker_shapes;
 pub mod renderer;
 pub mod scene;
@@ -63,6 +64,8 @@ pub mod shape;
 pub mod style;
 pub mod text;
 pub mod types;
+
+pub use latex::strip_latex_to_unicode;
 
 pub use curve::{CurveType, interpolate};
 pub use geometry::{
