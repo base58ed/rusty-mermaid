@@ -168,10 +168,12 @@ mod tests {
         assert_eq!(d.links.len(), 2);
     }
 
+    // 3.75 rather than 3.14: the value is arbitrary sample data, and a literal
+    // approximating a math constant trips `clippy::approx_constant`.
     #[test]
     fn parse_float_values() {
-        let d = parse("sankey-beta\nA,B,3.14\nC,D,0.001").unwrap();
-        assert!((d.links[0].value - 3.14).abs() < 1e-10);
+        let d = parse("sankey-beta\nA,B,3.75\nC,D,0.001").unwrap();
+        assert!((d.links[0].value - 3.75).abs() < 1e-10);
         assert!((d.links[1].value - 0.001).abs() < 1e-10);
     }
 
