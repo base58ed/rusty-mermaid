@@ -127,6 +127,35 @@ fn edges_produce_paths_with_markers() {
     );
 }
 
+/// A subgraph box carries its own `ElementId`, so an edge whose endpoint IS the
+/// subgraph can resolve that endpoint and bind to it. Unidentified, the box is
+/// invisible to binding resolution: the arrow lowers unbound, no consumer
+/// treats it as a graph edge, and it keeps stale coordinates while the nodes
+/// around it move — the disconnected tails seen in rendered output.
+/// (Mutation: push the rect without its id → this goes red.)
+#[test]
+fn subgraph_box_is_identified_so_edges_can_bind_to_it() {
+    let d = crate::flowchart::parser::parse(
+        "flowchart TD\n    A --> G\n    subgraph G[Group]\n        B --> C\n    end",
+    )
+    .unwrap();
+    let layout = crate::flowchart::bridge::layout(&d);
+    let scene = to_scene(&layout, &Theme::default());
+
+    let boxed = scene
+        .elements()
+        .iter()
+        .find(|e| e.id.as_ref() == Some(&ElementId::node("G")));
+    assert!(
+        boxed.is_some(),
+        "the subgraph box must carry ElementId::node(\"G\") for binding resolution",
+    );
+    assert!(
+        matches!(boxed.map(|e| &e.primitive), Some(Primitive::Rect { .. })),
+        "the identified subgraph element is its boundary rect",
+    );
+}
+
 #[test]
 fn subgraph_produces_background_rect() {
     let mmd = "flowchart TD\n    subgraph sg[My Group]\n        A --> B\n    end";

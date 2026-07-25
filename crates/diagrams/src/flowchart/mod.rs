@@ -73,12 +73,19 @@ fn layout_to_scene(layout: &LayoutResult, scene: &mut Scene, theme: &Theme) {
     });
     for sg in &subgraphs {
         let bbox = BBox::new(sg.x, sg.y, sg.width, sg.height);
-        scene.push(Primitive::Rect {
-            bbox,
-            rx: 5.0,
-            ry: 5.0,
-            style: subgraph_style(theme),
-        });
+        // Identify the boundary rect: mermaid lets an edge name a subgraph as an
+        // endpoint, and binding resolution looks that endpoint up by id. An
+        // anonymous box cannot be resolved, so such an edge lowers unbound and is
+        // never re-routed alongside the nodes it should follow.
+        scene.push_identified(
+            Primitive::Rect {
+                bbox,
+                rx: 5.0,
+                ry: 5.0,
+                style: subgraph_style(theme),
+            },
+            ElementId::node(&sg.id),
+        );
         if let Some(label) = &sg.label {
             let top_y = sg.y - sg.height / 2.0;
             let left_x = sg.x - sg.width / 2.0;
