@@ -43,7 +43,6 @@ venn = []
 rusty-mermaid-core.workspace = true
 rusty-mermaid-graph = { workspace = true, optional = true }
 rusty-mermaid-dagre = { workspace = true, optional = true }
-thiserror.workspace = true
 winnow = "1.0.4"
 
 [dev-dependencies]

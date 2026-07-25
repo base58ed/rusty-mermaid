@@ -10,4 +10,3 @@ categories.workspace = true
 description = "Directed multigraph with compound (hierarchical) node support"
 
 [dependencies]
-rusty-mermaid-core.workspace = true
