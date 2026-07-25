@@ -12,13 +12,13 @@ description = "wgpu/vello GPU rendering backend for rusty-mermaid diagrams"
 [dependencies]
 rusty-mermaid-core = { workspace = true }
 rusty-mermaid-viewport = { workspace = true }
-vello = "0.8"
-wgpu = "28"
-skrifa = "0.40"
+vello = "0.9"
+wgpu = "29"
+skrifa = "0.45"
 rustybuzz = "0.20"
 
-png = "0.17"
-pollster = "0.4"
+png = "0.18"
+pollster = "1.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = ["console"] }

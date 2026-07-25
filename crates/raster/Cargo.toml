@@ -11,8 +11,8 @@ description = "Raster (PNG) rendering backend for rusty-mermaid diagrams"
 
 [dependencies]
 rusty-mermaid-core = { workspace = true }
-tiny-skia = "0.11"
-png = "0.17"
+tiny-skia = "0.12"
+png = "0.18"
 fontdue = "0.9"
 
 [dev-dependencies]
