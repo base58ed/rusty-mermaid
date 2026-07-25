@@ -505,10 +505,19 @@ fn arc_points(center: Point, r: f64, start: f64, end: f64) -> Vec<[f64; 2]> {
 }
 
 /// Map a rusty-mermaid marker to an Excalidraw arrowhead name.
+///
+/// Excalidraw's `triangle` is a SOLID filled head and `arrow` is an open stick,
+/// so a filled marker must map to `triangle` and an open one to `arrow`. These
+/// two were transposed, which inverted the very distinction the notation
+/// carries: mermaid's `->>` (filled) drew a thin stick while `->` (open) drew a
+/// solid head. Every arm stays inside the `arrow|triangle|dot|bar|diamond`
+/// vocabulary that downstream consumers can decode.
 fn arrowhead(m: MarkerType) -> String {
     match m {
-        MarkerType::ArrowPoint | MarkerType::ArrowBarb | MarkerType::Extension => "arrow",
-        MarkerType::ArrowOpen | MarkerType::Dependency => "triangle",
+        // Filled heads: the emphatic marker (mermaid `->>`, UML generalization).
+        MarkerType::ArrowPoint | MarkerType::Extension => "triangle",
+        // Open heads: a plain stick (mermaid `->` / `-)`, UML dependency).
+        MarkerType::ArrowBarb | MarkerType::ArrowOpen | MarkerType::Dependency => "arrow",
         MarkerType::Circle | MarkerType::Aggregation => "dot",
         MarkerType::Cross => "bar",
         MarkerType::Composition => "diamond",
@@ -530,4 +539,51 @@ fn font_family(name: &str) -> u8 {
 /// Style opacity (0.0–1.0) → Excalidraw percentage (0–100). Default 100.
 fn opacity_pct(opacity: Option<f64>) -> u8 {
     opacity.map_or(100, |o| (o.clamp(0.0, 1.0) * 100.0).round() as u8)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A filled marker draws Excalidraw's SOLID `triangle` and an open one the
+    /// stick `arrow`. The two were transposed, so mermaid's `->>` rendered thin
+    /// and `->` rendered solid — the notation's meaning inverted. (Mutation:
+    /// swap the two arms back → the first two assertions go red.)
+    #[test]
+    fn arrowhead_maps_filled_to_solid_and_open_to_stick() {
+        assert_eq!(arrowhead(MarkerType::ArrowPoint), "triangle");
+        assert_eq!(arrowhead(MarkerType::ArrowOpen), "arrow");
+        assert_eq!(arrowhead(MarkerType::ArrowBarb), "arrow");
+        assert_eq!(arrowhead(MarkerType::Dependency), "arrow");
+        assert_eq!(arrowhead(MarkerType::Composition), "diamond");
+        assert_eq!(arrowhead(MarkerType::Cross), "bar");
+    }
+
+    /// Every marker maps into the arrowhead vocabulary Excalidraw and its
+    /// consumers can decode. A name outside this set (say `triangle_outline`)
+    /// deserializes to nothing downstream and breaks the whole import, so the
+    /// set is a hard boundary rather than a style preference.
+    #[test]
+    fn arrowhead_never_leaves_the_decodable_vocabulary() {
+        for m in [
+            MarkerType::ArrowPoint,
+            MarkerType::ArrowBarb,
+            MarkerType::ArrowOpen,
+            MarkerType::Circle,
+            MarkerType::Cross,
+            MarkerType::Aggregation,
+            MarkerType::Composition,
+            MarkerType::Dependency,
+            MarkerType::Extension,
+        ] {
+            let name = arrowhead(m);
+            assert!(
+                matches!(
+                    name.as_str(),
+                    "arrow" | "triangle" | "dot" | "bar" | "diamond"
+                ),
+                "{m:?} produced {name}, outside the decodable vocabulary",
+            );
+        }
+    }
 }
