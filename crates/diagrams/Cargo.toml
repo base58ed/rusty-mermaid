@@ -44,7 +44,7 @@ rusty-mermaid-core.workspace = true
 rusty-mermaid-graph = { workspace = true, optional = true }
 rusty-mermaid-dagre = { workspace = true, optional = true }
 thiserror.workspace = true
-winnow = "0.7.15"
+winnow = "1.0.4"
 
 [dev-dependencies]
 proptest = "1.10.0"

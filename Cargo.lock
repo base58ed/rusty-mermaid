@@ -4909,7 +4909,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.19",
- "winnow 0.7.15",
+ "winnow 1.0.4",
 ]
 
 [[package]]
