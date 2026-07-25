@@ -149,17 +149,19 @@ fn parse_subgraph_header(input: &mut &str) -> ModalResult<(String, Option<String
     // Try: identifier followed by [label]
     let checkpoint = *input;
     if let Ok(id) = node_id.parse_next(input) {
+        // Check for ["label"] BEFORE the bare bracket: `["` also satisfies
+        // `starts_with('[')`, so testing the bracket first consumes the quotes
+        // as part of the label and leaves this branch unreachable.
+        if input.starts_with("[\"") {
+            *input = &input[1..];
+            let label = quoted_string(input)?;
+            ']'.parse_next(input)?;
+            return Ok((id.to_string(), Some(label.to_string())));
+        }
         // Check for [label]
         if input.starts_with('[') {
             *input = &input[1..];
             let label = text_until(']', input)?;
-            ']'.parse_next(input)?;
-            return Ok((id.to_string(), Some(label.to_string())));
-        }
-        // Check for ["label"]
-        if input.starts_with("[\"") {
-            *input = &input[1..];
-            let label = quoted_string(input)?;
             ']'.parse_next(input)?;
             return Ok((id.to_string(), Some(label.to_string())));
         }

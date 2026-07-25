@@ -96,6 +96,26 @@ fn parse_subgraph() {
     assert!(d.subgraphs[0].node_ids.contains(&"B".to_string()));
 }
 
+/// A quoted subgraph title carries no quotes into the label. The bare-bracket
+/// branch also matched `["`, so the quoted branch below it was unreachable and
+/// the quote characters rode through into every renderer's output.
+/// (Mutation: restore the old branch order → the label keeps its quotes.)
+#[test]
+fn parse_subgraph_quoted_title_drops_the_quotes() {
+    let d =
+        parse("graph TD\n    subgraph hdr[\"Header fields\"]\n        A --> B\n    end").unwrap();
+    assert_eq!(d.subgraphs[0].id, "hdr");
+    assert_eq!(d.subgraphs[0].label.as_deref(), Some("Header fields"));
+}
+
+/// An unquoted bracketed title still reaches the label verbatim, so the
+/// reordering cannot swallow ordinary titles.
+#[test]
+fn parse_subgraph_bracketed_title_is_untouched() {
+    let d = parse("graph TD\n    subgraph g[Header fields]\n        A --> B\n    end").unwrap();
+    assert_eq!(d.subgraphs[0].label.as_deref(), Some("Header fields"));
+}
+
 #[test]
 fn parse_subgraph_unbracketed_title() {
     let d = parse("graph TD\n    subgraph Frontend\n        A --> B\n    end").unwrap();
